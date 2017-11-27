@@ -63,8 +63,7 @@ int main(int argc, const char* argv[]) {
     size_t pktTot = (fileSize + PACKET_DATA_SIZE - 1) / PACKET_DATA_SIZE;
     LOG_I("Ready to send %zu packets", pktTot);
 
-    PacketStatus pktStatus[pktTot];
-    memset(pktStatus, 0, sizeof(pktStatus));
+    PacketStatus* pktStatus = (PacketStatus*) calloc(sizeof(PacketStatus), pktTot);
 
     /* *** populate packet *** */
     int winSize = 1;
@@ -111,6 +110,10 @@ int main(int argc, const char* argv[]) {
             pktEmit++;
         }
 
+        // recording the last (largest) un-ack-ed packet suffices
+        // 0 means unset here
+        size_t firstUnAck = 0;
+
         // wait for those ACK or timeout, whichever comes first
         LOG_D("Waiting for %d ACKs", pktEmit);
         int timeout = 0;
@@ -130,19 +133,23 @@ int main(int argc, const char* argv[]) {
                 exit(1);
             }
 
+            firstUnAck = max(firstUnAck, pkt_resp.seq_num + 1);
+
             pktStatus[pkt_resp.seq_num] = PKT_STATUS_ACKED;
             printfStatus("recv", "ack", pkt_resp.seq_num, NULL);
         }
 
-        size_t firstUnAck = pktWinStart;
-        // check if all emitted packet is ack-ed
-        while (pktStatus[firstUnAck] == PKT_STATUS_ACKED && firstUnAck < pktWinStart + pktEmit)
-            firstUnAck++;
+        // only if the whole window timeouts, find out the first un-ack-ed packet by traversal
+        if (!firstUnAck) {
+            firstUnAck = pktWinStart;
+            while (pktStatus[firstUnAck] == PKT_STATUS_ACKED && firstUnAck < pktWinStart + pktEmit)
+                firstUnAck++;
+        }
 
         if (timeout || firstUnAck < pktWinStart + pktEmit) {
             // failed to complete this round
             pktWinStart = firstUnAck;
-            LOG_W("Last failed @ seq num %zu (timeout=%d)", pktWinStart, timeout);
+            LOG_W("Congestion happens, recovering from seq num %zu (timeout=%d)", pktWinStart, timeout);
             threshold = max(winSize >> 1, 1);
             winSize = 1;
             printfStatus("time", "out", -1, "threshold = %d", threshold);

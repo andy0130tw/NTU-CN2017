@@ -26,7 +26,7 @@ int main(int argc, const char* argv[]) {
     int sock_fd = initSocket(&srvaddr);
     socklen_t addrlen = sizeof(srvaddr);
     packet pkt_buf;
-    char buffer[bufSize][PACKET_DATA_SIZE];
+    char buffer[bufSize][PACKET_DATA_SIZE];  // be aware that this might overflow buffer!
     int bufUsedCnt = 0;
     size_t bufUsedLen = 0;
     size_t expectedAckId = 0;
@@ -77,6 +77,12 @@ int main(int argc, const char* argv[]) {
                     bufUsedLen = 0;
                 }
 
+                if (pkt_buf.seq_num < expectedAckId) {
+                    LOG_E("Sender misbehaved: Seq num is smaller then requested (%lu < %lu), refusing to continue",
+                        pkt_buf.seq_num, expectedAckId);
+                    exit(1);
+                }
+
                 verb = "drop";
                 pkt_resp.seq_num = expectedAckId - 1;
                 LOG_W("Drop packet and send ACK %zu instead", pkt_resp.seq_num);
@@ -86,6 +92,7 @@ int main(int argc, const char* argv[]) {
         case PKT_FIN:
             // finalize, send back FINACK
             pkt_resp.type = PKT_FIN_ACK;
+            printfStatus("recv", "fin", -1, NULL);
             break;
         default:
             LOG_E("Unexpected packet type (%d)", pkt_buf.type);
