@@ -69,14 +69,6 @@ int main(int argc, const char* argv[]) {
                 // drop because
                 //   (1) buffer is ready to overflow
                 //   (2) the seq-number is not correct, indicating a loss
-
-                if (bufUsedCnt == bufSize) {
-                    printfStatus("flush", "", -1, NULL);
-                    flushBuffer(fp_out, (char*) buffer, bufUsedLen);
-                    bufUsedCnt = 0;
-                    bufUsedLen = 0;
-                }
-
                 if (pkt_buf.seq_num < expectedAckId) {
                     LOG_E("Sender misbehaved: Seq num is smaller then requested (%lu < %lu), refusing to continue",
                         pkt_buf.seq_num, expectedAckId);
@@ -86,6 +78,13 @@ int main(int argc, const char* argv[]) {
                 verb = "drop";
                 pkt_resp.seq_num = expectedAckId - 1;
                 LOG_W("Drop packet and send ACK %zu instead", pkt_resp.seq_num);
+
+                if (bufUsedCnt == bufSize) {
+                    printfStatus("flush", "", -1, NULL);
+                    flushBuffer(fp_out, (char*) buffer, bufUsedLen);
+                    bufUsedCnt = 0;
+                    bufUsedLen = 0;
+                }
             }
             printfStatus(verb, "data", pkt_buf.seq_num, NULL);
             break;

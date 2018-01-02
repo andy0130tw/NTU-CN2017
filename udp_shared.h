@@ -94,7 +94,9 @@ static int fillConnInfo(const char* cstr, struct sockaddr_in* addr) {
     char* ipBuf = (char*) malloc(36);
     strncpy(ipBuf, cstr, ipLen);
     ipBuf[ipLen] = '\0';
-    if (inet_pton(AF_INET, ipBuf, &addr->sin_addr) != 1) return -1;
+    int ret = inet_pton(AF_INET, ipBuf, &addr->sin_addr);
+    free(ipBuf);
+    if (ret != 1) return -1;
 
     addr->sin_family = AF_INET;
     addr->sin_port = htons(portNum);
